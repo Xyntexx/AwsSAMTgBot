@@ -12,6 +12,45 @@ Parameters:
     Description: "Secret token for securing the webhook endpoint"
 
 Resources:
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: authorizer.lambda_handler
+      Runtime: python3.12
+      CodeUri: ./authorizer
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          SECRET_TOKEN: !Ref SecretToken
+
+  TelegramBotApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: Telegram Bot API
+          version: 1.0
+        paths:
+          /telegram:
+            post:
+              parameters:
+                - name: X-Telegram-Bot-Api-Secret-Token
+                  in: header
+                  required: true
+                  schema:
+                    type: string
+              responses:
+                '200':
+                  description: Success
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TelegramBotFunction.Arn}/invocations"
+                credentials: !GetAtt ApiGatewayExecutionRole.Arn
+
   TelegramBotFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -32,6 +71,9 @@ Resources:
           Properties:
             Path: /telegram
             Method: POST
+            RestApiId: !Ref TelegramBotApi
+            Auth:
+              Authorizer: !Ref AuthorizerFunction
 
   BottlesTable:
     Type: AWS::DynamoDB::Table
@@ -74,3 +116,27 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+
+  ApiGatewayExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayInvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt TelegramBotFunction.Arn
+
+Outputs:
+  TelegramBotApi:
+    Description: "Telegram bot API Gateway endpoint"
+    Value: !Sub "https://${TelegramBotApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/telegram"
