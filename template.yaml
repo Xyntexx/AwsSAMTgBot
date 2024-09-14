@@ -54,6 +54,13 @@ Resources:
   TelegramBotFunction:
     Type: AWS::Serverless::Function
     Properties:
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BottlesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AdminsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GifsTable
       Handler: app.lambda_handler
       Runtime: python3.12
       CodeUri: .
