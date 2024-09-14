@@ -1,11 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Telegram Bot using AWS SAM, DynamoDB, and Webhooks
+Description: A Telegram bot using AWS Lambda and DynamoDB
 
 Parameters:
   TelegramBotToken:
     Type: String
     Description: "The token for your Telegram bot"
+
+  SecretToken:
+    Type: String
+    Description: "Secret token for securing the webhook endpoint"
 
 Resources:
   TelegramBotFunction:
@@ -14,30 +18,59 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.12
       CodeUri: .
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          DYNAMODB_BOTTLES_TABLE: !Ref BottlesTable
+          DYNAMODB_ADMINS_TABLE: !Ref AdminsTable
+          DYNAMODB_GIFS_TABLE: !Ref GifsTable
       Events:
-        TelegramWebhook:
+        TelegramApi:
           Type: Api
           Properties:
             Path: /telegram
             Method: POST
-      Environment:
-        Variables:
-          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
-          DYNAMODB_TABLE: !Ref TelegramTable
 
-  TelegramTable:
+  BottlesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: TelegramMessages
+      TableName: Bottles
       AttributeDefinitions:
-        - AttributeName: MessageId
+        - AttributeName: id
           AttributeType: S
       KeySchema:
-        - AttributeName: MessageId
+        - AttributeName: id
           KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
 
-Outputs:
-  ApiUrl:
-    Description: "API Gateway endpoint URL for Telegram Bot"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/telegram"
+  AdminsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Admins
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  GifsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Gifs
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
