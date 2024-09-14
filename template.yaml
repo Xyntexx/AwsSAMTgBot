@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Telegram Bot using AWS SAM, DynamoDB, and Webhooks
+
+Parameters:
+  TelegramBotToken:
+    Type: String
+    Description: "The token for your Telegram bot"
+
+Resources:
+  TelegramBotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      CodeUri: .
+      Events:
+        TelegramWebhook:
+          Type: Api
+          Properties:
+            Path: /telegram
+            Method: POST
+      Environment:
+        Variables:
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          DYNAMODB_TABLE: !Ref TelegramTable
+
+  TelegramTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TelegramMessages
+      AttributeDefinitions:
+        - AttributeName: MessageId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: MessageId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL for Telegram Bot"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/telegram"
