@@ -1,8 +1,9 @@
 import asyncio
+import app_logger
 
-from bot import *
+from bot import run_bot, add_handlers
 
-logger = app_logger.get_logger(__name__)
+logger = app_logger.logger
 
 
 def lambda_handler(event, context):
