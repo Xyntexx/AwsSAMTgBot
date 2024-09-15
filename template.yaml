@@ -11,6 +11,12 @@ Parameters:
     Type: String
     Description: "Secret token for securing the webhook endpoint"
 
+  LogLevel:
+    Type: String
+    Default: "INFO"
+    AllowedValues: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    Description: "Log level for the Lambda functions"
+
 Resources:
   AuthorizerFunction:
     Type: AWS::Serverless::Function
@@ -72,6 +78,7 @@ Resources:
           DYNAMODB_BOTTLES_TABLE: !Ref BottlesTable
           DYNAMODB_ADMINS_TABLE: !Ref AdminsTable
           DYNAMODB_GIFS_TABLE: !Ref GifsTable
+          LOG_LEVEL: !Ref LogLevel
       Events:
         TelegramApi:
           Type: Api
