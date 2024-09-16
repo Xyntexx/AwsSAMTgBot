@@ -29,45 +29,44 @@ def gif_random():
         gifs = gifs_table.scan().get("Items", [])
         if not gifs:
             return None
-        return random.choice(gifs)["url"]
+        return random.choice(gifs)["file_id"]
     except Exception as e:
         print(f"Error fetching gifs: {e}")
         return None
 
 
-def gif_list():
+def gif_list() -> tuple[list[str], list[str]]:
     """Lists all GIFs stored in the DynamoDB table."""
     try:
         gifs = gifs_table.scan().get("Items", [])
         if not gifs:
-            return "No GIFs saved."
-        return [gif["url"] for gif in gifs]
+            return [], []
+        return [gif["id"] for gif in gifs], [gif["file_id"] for gif in gifs]
     except Exception as e:
         print(f"Error fetching gifs: {e}")
-        return "Error fetching GIFs."
+        return [], []
 
 
-def gif_add(url):
+def gif_add(file_id):
     """Adds a new GIF to the DynamoDB table."""
     # Generate a unique id for the GIF
     gif_id = str(uuid.uuid4())
-
     try:
-        gifs_table.put_item(Item={"id": gif_id, "url": url})
-        return f"GIF '{url}' added."
+        gifs_table.put_item(Item={"id": gif_id, "file_id": file_id})
+        return True
     except Exception as e:
         print(f"Error adding GIF: {e}")
-        return "Error adding GIF."
+        return False
 
 
 def gif_remove(gif_id):
     """Removes a GIF from the DynamoDB table by id."""
     try:
         gifs_table.delete_item(Key={"id": gif_id})
-        return f"GIF with id '{gif_id}' removed."
+        return True
     except Exception as e:
         print(f"Error removing GIF: {e}")
-        return "Error removing GIF."
+        return False
 
 
 # -------------------------------------
@@ -150,21 +149,21 @@ def admin_list():
     try:
         admins = admins_table.scan().get("Items", [])
         if not admins:
-            return "No admins saved."
+            return []
         return [admin["id"] for admin in admins]
     except Exception as e:
         print(f"Error fetching admins: {e}")
-        return "Error fetching admins."
+        return []
 
 
 def admin_add(user_id):
     """Adds a new admin to the DynamoDB table."""
     try:
         admins_table.put_item(Item={"id": str(user_id)})
-        return f"Admin '{user_id}' added."
+        return True
     except Exception as e:
         print(f"Error adding admin: {e}")
-        return "Error adding admin."
+        return False
 
 
 def admin_remove(user_id):

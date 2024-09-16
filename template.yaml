@@ -67,7 +67,7 @@ Resources:
             TableName: !Ref AdminsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref GifsTable
-      Handler: app.lambda_handler
+      Handler: lambda_handler.lambda_handler
       Runtime: python3.12
       CodeUri: .
       MemorySize: 128

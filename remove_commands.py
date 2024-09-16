@@ -1,7 +1,20 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler, CallbackContext, CommandHandler
+from telegram.ext import CallbackQueryHandler, CallbackContext, CommandHandler, filters
+from telegram.helpers import escape_markdown
 
-from database import bottle_names_list, gif_list, admin_list, admin_remove, gif_remove, bottle_remove, bottle_list
+from database import bottle_names_list, gif_list, admin_list, admin_remove, gif_remove, bottle_remove, bottle_list, is_admin
+
+import re
+
+
+def escape_underscores(text: str) -> str:
+    """Escape underscores by replacing them with a special placeholder."""
+    return text.replace('_', '\\_')  # Replaces underscores with escaped versions
+
+
+def unescape_underscores(text: str) -> str:
+    """Unescape underscores by replacing '\\_' with '_'."""
+    return text.replace('\\_', '_')
 
 
 async def send_selection_message(update: Update, context: CallbackContext, item_names: list, item_ids: list, message: str, callback_data_prefix: str) -> None:
@@ -9,8 +22,13 @@ async def send_selection_message(update: Update, context: CallbackContext, item_
         await update.message.reply_text("No items available.")
         return
 
+    # Escape underscores in item names
+    escaped_item_names = [escape_underscores(item_name) for item_name in item_names]
+
     # Create inline keyboard buttons for each item with prefixed callback_data
-    keyboard = [[InlineKeyboardButton(item_name, callback_data=f"{callback_data_prefix}_{item_id}")]for item_name, item_id in zip(item_names, item_ids)]
+    keyboard = [[InlineKeyboardButton(item_name, callback_data=f"{callback_data_prefix}_{item_name}_{item_id}")]
+                for item_name, item_id in zip(escaped_item_names, item_ids)]
+
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # Send a message with the inline keyboard
@@ -19,18 +37,23 @@ async def send_selection_message(update: Update, context: CallbackContext, item_
 
 async def handle_selection(update: Update, context: CallbackContext, item_type: str, process_function) -> bool:
     query = update.callback_query
-    item_name = query.data.split('_', 1)[1]  # Extract item name from callback data
-    item_id = query.data.split('_', 2)[2]  # Extract item id from callback data
+    callback_items = query.data.split('_', 3)
+    if len(callback_items) != 3:
+        await query.answer()
+        await query.edit_message_text(text="Invalid selection.")
+        return False
+    item_name = unescape_underscores(callback_items[1])
+    item_id = callback_items[2]
 
     # Process the selected item using the provided function
-    await process_function(update, item_name, item_id)
+    await process_function(update, item_id)
 
     # Acknowledge the callback query and send a response
     await query.answer()
-    await query.edit_message_text(text=f"{item_type} '{item_name}' processed.")
+    await query.edit_message_text(text=f"{item_type} '{item_name}' poistettu.")
 
 
-async def process_bottle(update, bottle_name: str, bottle_id: str) -> None:
+async def process_bottle(update, bottle_id: str) -> None:
     # Implement the logic for processing a bottle selection
     # For example, remove the bottle from a database
 
@@ -41,7 +64,7 @@ async def process_bottle(update, bottle_name: str, bottle_id: str) -> None:
     #update.message.reply_text(f"Pullo '{selected_bottle}' poistettu.")
 
 
-async def process_gif(update, gif_name: str, gif_id: str) -> None:
+async def process_gif(update, gif_id: str) -> None:
     # Implement the logic for processing a gif selection
     # For example, remove the gif from a database
 
@@ -50,17 +73,15 @@ async def process_gif(update, gif_name: str, gif_id: str) -> None:
     #update.message.reply_text(f"Gif '{selected_gif}' poistettu.")
 
 
-async def process_admin(update, admin_name: str, admin_id: str) -> None:
+async def process_admin(update, admin_id: str) -> None:
     # Implement the logic for processing an admin selection
     # For example, remove the admin from a database
 
     admin_remove(admin_id)
 
-    #update.message.reply_text(f"Admin '{selected_admin}' poistettu.")
-
 
 async def bottle_remove_command(update: Update, context: CallbackContext) -> None:
-    bottle_names, bottle_ids = bottle_names_list()
+    bottle_names, bottle_ids = bottle_list()
 
     if not bottle_names:
         await update.message.reply_text("Ei pulloja.")
@@ -70,16 +91,23 @@ async def bottle_remove_command(update: Update, context: CallbackContext) -> Non
 
 async def handle_bottle_selection(update: Update, context: CallbackContext) -> None:
     removed = await handle_selection(update, context, "Pullo", process_bottle)
-    #await update.message.reply_text("Pullo poistettu.")
 
 
 async def gif_remove_command(update: Update, context: CallbackContext) -> None:
-    gifs = gif_list()
-    if not gifs:
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Ei oikeuksia.")
+        return
+    gif_ids, file_ids = gif_list()
+    if not gif_ids:
         await update.message.reply_text("Ei giffejä.")
         return
-    gifs = [i for i in range(1, len(gif_list() + 1))]  # Replace with your function to list gifs
-    await send_selection_message(update, context, gifs, gifs, "Mikä gif poistetaan?", "gif")
+    length = len(gif_ids)
+    for i in range(length):
+        await update.message.reply_text(f"{i + 1}")
+        await update.message.reply_animation(file_ids[i])
+
+    gif_names = [str(i+1) for i in range(length)]  # Replace with your function to list gifs
+    await send_selection_message(update, context, gif_names, gif_ids, "Mikä gif poistetaan?", "gif")
 
 
 async def handle_gif_selection(update: Update, context: CallbackContext) -> None:
@@ -87,6 +115,9 @@ async def handle_gif_selection(update: Update, context: CallbackContext) -> None
 
 
 async def admin_remove_command(update: Update, context: CallbackContext) -> None:
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Ei oikeuksia.")
+        return
     admins = admin_list()
     await send_selection_message(update, context, admins, admins, "Kuka admin poistetaan?", "admin")
 
@@ -98,9 +129,9 @@ async def handle_admin_selection(update: Update, context: CallbackContext) -> No
 def register_callbacks(application):
     # Register command handlers
 
-    application.add_handler(CommandHandler("pullo_remove", bottle_remove_command))
-    application.add_handler(CommandHandler("gif_remove", gif_remove_command))
-    application.add_handler(CommandHandler("admin_remove", admin_remove_command))
+    application.add_handler(CommandHandler("pullo_remove", bottle_remove_command,filters=~filters.UpdateType.EDITED))
+    application.add_handler(CommandHandler("gif_remove", gif_remove_command,filters=~filters.UpdateType.EDITED))
+    application.add_handler(CommandHandler("admin_remove", admin_remove_command,filters=~filters.UpdateType.EDITED))
 
     # Register callback handlers
     application.add_handler(CallbackQueryHandler(handle_bottle_selection, pattern=r'^bottle_'))
